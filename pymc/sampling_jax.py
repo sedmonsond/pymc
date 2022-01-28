@@ -26,7 +26,7 @@ from aesara.graph.fg import FunctionGraph
 from aesara.link.jax.dispatch import jax_funcify
 
 from pymc import Model, modelcontext
-from pymc.aesaraf import compile_rv_inplace
+from pymc.aesaraf import compile_pymc#compile_rv_inplace
 
 warnings.warn("This module is experimental.")
 
@@ -172,7 +172,7 @@ def sample_numpyro_nuts(
             mcmc_samples.append(raw_samples)
 
     mcmc_varnames = [var.name for var in mcmc_samples]
-    mcmc_samples = compile_rv_inplace(
+    mcmc_samples = compile_pymc(
         [],
         mcmc_samples,
         mode="JAX",
