@@ -1,4 +1,4 @@
-#   Copyright 2020 The PyMC Developers
+#   Copyright 2023 The PyMC Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -17,22 +17,55 @@ pymc.blocking
 
 Classes for working with subsets of parameters.
 """
-import collections
+from __future__ import annotations
 
 from functools import partial
-from typing import Callable, Dict, Optional, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    NamedTuple,
+    Optional,
+    Sequence,
+    TypeVar,
+    Union,
+)
 
 import numpy as np
+
+from typing_extensions import TypeAlias
 
 __all__ = ["DictToArrayBijection"]
 
 
 T = TypeVar("T")
-PointType = Dict[str, np.ndarray]
+PointType: TypeAlias = Dict[str, np.ndarray]
+StatsDict: TypeAlias = Dict[str, Any]
+StatsType: TypeAlias = List[StatsDict]
+StatDtype: TypeAlias = Union[type, np.dtype]
+StatShape: TypeAlias = Optional[Sequence[Optional[int]]]
+
 
 # `point_map_info` is a tuple of tuples containing `(name, shape, dtype)` for
 # each of the raveled variables.
-RaveledVars = collections.namedtuple("RaveledVars", "data, point_map_info")
+class RaveledVars(NamedTuple):
+    data: np.ndarray
+    point_map_info: tuple[tuple[str, tuple[int, ...], np.dtype], ...]
+
+
+class Compose(Generic[T]):
+    """
+    Compose two functions in a pickleable way
+    """
+
+    def __init__(self, fa: Callable[[PointType], T], fb: Callable[[RaveledVars], PointType]):
+        self.fa = fa
+        self.fb = fb
+
+    def __call__(self, x: RaveledVars) -> T:
+        return self.fa(self.fb(x))
 
 
 class DictToArrayBijection:
@@ -56,12 +89,12 @@ class DictToArrayBijection:
     @staticmethod
     def rmap(
         array: RaveledVars,
-        start_point: Optional[PointType] = None,
+        start_point: PointType | None = None,
     ) -> PointType:
         """Map 1D concatenated array to a dictionary of variables in their original spaces.
 
         Parameters
-        ==========
+        ----------
         array
             The array to map.
         start_point
@@ -86,7 +119,9 @@ class DictToArrayBijection:
         return result
 
     @classmethod
-    def mapf(cls, f: Callable[[PointType], T], start_point: Optional[PointType] = None) -> T:
+    def mapf(
+        cls, f: Callable[[PointType], T], start_point: PointType | None = None
+    ) -> Callable[[RaveledVars], T]:
         """Create a callable that first maps back to ``dict`` inputs and then applies a function.
 
         function f: DictSpace -> T to ArraySpace -> T
@@ -100,16 +135,3 @@ class DictToArrayBijection:
         f: array -> T
         """
         return Compose(f, partial(cls.rmap, start_point=start_point))
-
-
-class Compose:
-    """
-    Compose two functions in a pickleable way
-    """
-
-    def __init__(self, fa, fb):
-        self.fa = fa
-        self.fb = fb
-
-    def __call__(self, x):
-        return self.fa(self.fb(x))
